@@ -1,1 +1,577 @@
-...
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Imagi-world (Da Vinci)</title>
+    <style>
+        :root {
+            --bg: #0b0c10;
+            --panel: #1f2833;
+            --input: #c5c6c7;
+            --accent: #45a29e;
+            --highlight: #66fcf1;
+            --text: #e6e6e6;
+            --success: #2ecc71;
+            --danger: #e74c3c;
+            --beta: #ff0033;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: 'SF Mono', 'Segoe UI Mono', 'Roboto Mono', monospace;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        /* Original CRT Overlay */
+        body::after {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        h1 { 
+            margin: 20px 0; 
+            font-size: 2.2rem; 
+            text-align: center; 
+            letter-spacing: -1px; 
+            text-transform: uppercase; 
+        }
+
+        .beta-tag {
+            color: var(--beta);
+            font-weight: 900;
+            font-style: italic;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse { 0% { opacity: 0.8; } 50% { opacity: 1; text-shadow: 0 0 15px var(--beta); } 100% { opacity: 0.8; } }
+
+        .container { max-width: 900px; width: 100%; z-index: 1; }
+
+        .controls {
+            background: var(--panel);
+            padding: 25px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border: 1px solid #45a29e33;
+            box-shadow: 0 0 20px rgba(69, 162, 158, 0.1);
+        }
+
+        .control-group { margin-bottom: 20px; }
+        label { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 700; font-size: 0.85rem; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--highlight);
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none; width: 16px; height: 16px; background: var(--highlight); border-radius: 50%; cursor: pointer;
+        }
+
+        input[type="number"] {
+            background: #111; border: 1px solid #444; color: var(--highlight); padding: 8px; font-family: inherit; width: 100%;
+        }
+
+        .button-group { display: flex; gap: 15px; margin-top: 30px; }
+
+        button {
+            background: transparent;
+            color: var(--highlight);
+            border: 1px solid var(--highlight);
+            padding: 15px 30px;
+            font-size: 1rem;
+            font-family: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            flex: 1;
+            text-transform: uppercase;
+            transition: all 0.2s;
+        }
+        button:hover:not(:disabled) { background: var(--highlight); color: var(--bg); box-shadow: 0 0 15px var(--highlight); }
+        button:disabled { border-color: #444; color: #666; cursor: not-allowed; }
+        
+        button.danger { border-color: var(--danger); color: var(--danger); }
+        button.danger:hover:not(:disabled) { background: var(--danger); color: white; box-shadow: 0 0 15px var(--danger); }
+
+        .game-area {
+            background: var(--panel);
+            padding: 50px 20px;
+            border-radius: 4px;
+            text-align: center;
+            min-height: 350px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #45a29e33;
+            position: relative;
+        }
+
+        .premise-display {
+            font-size: 1.4rem;
+            color: #fff;
+            margin: 20px 0;
+            line-height: 1.6;
+            font-weight: 400;
+            min-height: 80px;
+            max-width: 90%;
+            opacity: 0; /* Hidden by default for sync */
+            transition: opacity 0.1s ease-out;
+            will-change: opacity;
+        }
+
+        .status { position: absolute; top: 15px; left: 20px; font-size: 0.7rem; color: #666; text-transform: uppercase; }
+
+        .feedback { 
+            height: 40px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            font-size: 1.5rem; 
+            font-weight: 900; 
+            text-transform: uppercase; 
+            letter-spacing: 2px;
+        }
+        .feedback.correct { color: var(--success); text-shadow: 0 0 10px var(--success); }
+        .feedback.incorrect { color: var(--danger); text-shadow: 0 0 10px var(--danger); }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1px;
+            background: #45a29e33;
+            margin-top: 20px;
+            border: 1px solid #45a29e33;
+        }
+        .stat-box { background: var(--panel); padding: 15px; text-align: center; }
+        .stat-val { font-size: 1.8rem; font-weight: 700; color: var(--text); }
+        .stat-lbl { font-size: 0.7rem; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 5px; }
+
+        #runtime-diagnostics-panel {
+            margin-top: 15px;
+            font-size: 0.75rem;
+            color: #555;
+            border-top: 1px solid #333;
+            padding-top: 10px;
+            font-family: monospace;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+
+<main class="container">
+    <h1>Imagi-world <span class="beta-tag">BETA</span></h1>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>N-Back Level (Load) <span id="n-value" style="color:var(--highlight)">1</span></label>
+            <input type="range" id="n-slider" min="1" max="12" value="1">
+        </div>
+
+        <div class="control-group">
+            <label>Chain Length (Atoms) <span id="k-value" style="color:var(--highlight)">1</span></label>
+            <input type="range" id="k-slider" min="1" max="8" value="1">
+        </div>
+
+        <div class="control-group">
+            <label>Thinking Time (Seconds) <span id="spt-value" style="color:var(--highlight)">4.0</span>s</label>
+            <input type="range" id="spt-slider" min="1.5" max="20" step="0.5" value="4.0">
+        </div>
+        
+        <div class="control-group">
+             <label>Total Trials</label>
+             <input type="number" id="numTrialsInput" value="20" min="5" max="1000">
+        </div>
+
+        <div class="button-group">
+            <button id="start-btn">INITIATE SEQUENCE</button>
+            <button id="stop-btn" class="danger" disabled>ABORT</button>
+        </div>
+
+        <div id="runtime-diagnostics-panel">
+            <span id="diag-status">SYSTEM IDLE</span>
+            <span id="diag-meta">iPhone: Unmute Ringer</span>
+        </div>
+    </div>
+
+    <div class="game-area">
+        <div class="status" id="status">READY</div>
+        <div class="premise-display" id="premise-display">Awaiting Initialization</div>
+        <div class="feedback" id="feedback"></div>
+
+        <div class="response-buttons" style="margin-top:20px; display:flex; gap:20px;">
+            <button id="match-btn" disabled>MATCH [Space]</button>
+            <button id="no-match-btn" disabled>NO MATCH [Enter]</button>
+        </div>
+    </div>
+
+    <div class="stats">
+        <div class="stat-box">
+            <div class="stat-lbl">Trial</div>
+            <div class="stat-val" id="trial-count">0</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-lbl">Score</div>
+            <div class="stat-val" id="score">0</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-lbl">Accuracy</div>
+            <div class="stat-val" id="accuracy">--</div>
+        </div>
+    </div>
+</main>
+
+<script>
+/**
+ * IMAGI-WORLD ENGINE v11.0 (Initial Sync Patch)
+ * 
+ * FIXES IMPLEMENTED:
+ * 1. START GAP: Added 1.5s buffer between "Starting" unlock and Countdown to prevent overlap.
+ * 2. LOGIC: Strict Anti-Replication + High Entropy.
+ * 3. SYNC: Hardware 'onstart' trigger.
+ * 4. TIMING: Input window logic.
+ */
+
+const RELATIONS = {
+    'N': 'North', 'S': 'South', 'E': 'East', 'W': 'West',
+    'NE': 'North-East', 'NW': 'North-West', 'SE': 'South-East', 'SW': 'South-West'
+};
+const AXES = Object.keys(RELATIONS);
+
+class RNG {
+    constructor() { this.seed = Date.now(); }
+    next() {
+        let t = (this.seed += 0x6D2B79F5);
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    }
+    choice(arr) { return arr[Math.floor(this.next() * arr.length)]; }
+    shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(this.next() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+}
+
+class Atom {
+    constructor(axis, head, tail) {
+        this.axis = axis; this.head = head; this.tail = tail;
+    }
+    toString() { return `${this.head} is ${RELATIONS[this.axis]} of ${this.tail}`; }
+    toKey() { return `${this.axis}:${this.head}:${this.tail}`; }
+}
+
+class Premise {
+    constructor(atoms) { this.atoms = atoms; }
+    toString() { return this.atoms.map(a => a.toString()).join('; and '); }
+    toKey() { return this.atoms.map(a => a.toKey()).join('|'); }
+}
+
+class AdvancedGenerator {
+    constructor(rng) {
+        this.rng = rng;
+        this.letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
+    }
+
+    getOpposite(axis) {
+        const map = { 'N':'S', 'S':'N', 'E':'W', 'W':'E', 'NE':'SW', 'SW':'NE', 'NW':'SE', 'SE':'NW' };
+        return map[axis];
+    }
+
+    getFreshPool(count) {
+        const pool = [...this.letters];
+        return this.rng.shuffle(pool).slice(0, count);
+    }
+
+    generate(k, matchTarget = null) {
+        if (matchTarget) return this.buildInvertedMatch(matchTarget);
+        return this.buildFresh(k, null);
+    }
+
+    buildFresh(k, avoidTarget = null) {
+        let attempts = 0;
+        while(attempts < 50) {
+            const pool = this.getFreshPool(k + 1);
+            const atoms = [];
+            for (let i = 0; i < k; i++) {
+                const head = pool[i];
+                const tail = pool[i+1];
+                const axis = this.rng.choice(AXES);
+                atoms.push(new Atom(axis, head, tail));
+            }
+            const p = new Premise(atoms);
+            
+            if (avoidTarget) {
+                const pKey = p.toKey();
+                const targetKey = avoidTarget.toKey();
+                const matchKey = this.buildInvertedMatch(avoidTarget).toKey();
+                
+                if (pKey === targetKey || pKey === matchKey) {
+                    attempts++;
+                    continue; 
+                }
+            }
+            return p;
+        }
+        return this.buildFresh(k, null); 
+    }
+
+    buildInvertedMatch(target) {
+        const atoms = [];
+        for (let i = target.atoms.length - 1; i >= 0; i--) {
+            const a = target.atoms[i];
+            atoms.push(new Atom(this.getOpposite(a.axis), a.tail, a.head));
+        }
+        return new Premise(atoms);
+    }
+}
+
+class GameEngine {
+    constructor() {
+        this.rng = new RNG();
+        this.gen = new AdvancedGenerator(this.rng);
+        this.history = [];
+        this.n = 1;
+        this.k = 1;
+        this.spt = 4.0;
+        this.running = false;
+        this.abortCtrl = null;
+        this.score = 0;
+        this.synth = window.speechSynthesis;
+    }
+
+    speakAndVerify(text) {
+        return new Promise(resolve => {
+            const display = document.getElementById('premise-display');
+            
+            display.style.transition = 'none';
+            display.style.opacity = '0';
+            display.innerText = text;
+            void display.offsetWidth;
+            display.style.transition = 'opacity 0.1s ease-out';
+
+            this.synth.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            
+            const voices = this.synth.getVoices();
+            const preferred = voices.find(v => v.name.includes('Samantha')) || 
+                              voices.find(v => v.lang.startsWith('en'));
+            if(preferred) u.voice = preferred;
+            u.rate = 1.15; 
+            u.pitch = 1.0;
+            u.volume = 1.0;
+
+            u.onstart = () => { display.style.opacity = '1'; };
+            u.onend = () => { resolve(); };
+            u.onerror = () => resolve();
+
+            this.synth.speak(u);
+        });
+    }
+
+    speakPlain(text) {
+         const u = new SpeechSynthesisUtterance(text);
+         u.rate = 1.15;
+         u.volume = 1.0;
+         this.synth.speak(u);
+    }
+
+    async vocalCountdown() {
+        const display = document.getElementById('premise-display');
+        display.style.transition = 'none';
+        display.style.opacity = '0';
+        void display.offsetWidth;
+        display.style.color = 'var(--highlight)';
+        display.style.fontSize = "3rem";
+        display.style.opacity = '1';
+
+        const count = ["Three", "Two", "One"];
+        for (let num of count) {
+            display.innerText = num === "Three" ? "3" : (num === "Two" ? "2" : "1");
+            this.speakPlain(num);
+            await new Promise(r => setTimeout(r, 1000));
+        }
+
+        display.style.opacity = '0';
+        await new Promise(r => setTimeout(r, 200));
+        display.innerText = "";
+        display.style.fontSize = "";
+        display.style.color = "#fff";
+    }
+
+    async runSession(totalTrials) {
+        this.running = true;
+        this.abortCtrl = new AbortController();
+        this.history = [];
+        this.score = 0;
+        
+        document.getElementById('start-btn').disabled = true;
+        document.getElementById('stop-btn').disabled = false;
+        document.getElementById('status').innerText = "INITIALIZING...";
+        document.getElementById('score').innerText = "0";
+        document.getElementById('accuracy').innerText = "--";
+
+        try {
+            await this.vocalCountdown();
+
+            document.getElementById('status').innerText = "SEQUENCE RUNNING";
+
+            for (let i = 0; i < totalTrials; i++) {
+                if (this.abortCtrl.signal.aborted) break;
+                
+                let isMatch = (i >= this.n) && (this.rng.next() > 0.70);
+                const target = isMatch ? this.history[i - this.n] : null;
+                
+                let premise;
+                let debugType = "";
+
+                if (isMatch) {
+                    premise = this.gen.generate(this.k, target);
+                    debugType = "MATCH (INVERTED)";
+                } else {
+                    const avoid = (i >= this.n) ? this.history[i - this.n] : null;
+                    premise = this.gen.buildFresh(this.k, avoid);
+                    debugType = "NO MATCH";
+                }
+                
+                this.history.push(premise);
+                
+                document.getElementById('trial-count').innerText = i + 1;
+                document.getElementById('diag-status').innerText = `TRIAL ${i+1}`;
+                document.getElementById('diag-meta').innerText = `${debugType}`;
+
+                await this.speakAndVerify(premise.toString());
+                
+                const userAction = await this.waitForInput(this.spt * 1000, this.abortCtrl.signal);
+                
+                if (!this.abortCtrl.signal.aborted) {
+                    let correct = false;
+                    if (isMatch && userAction === 'match') correct = true;
+                    if (!isMatch && userAction === 'nomatch') correct = true;
+                    
+                    const fb = document.getElementById('feedback');
+                    if (userAction === 'timeout') {
+                         fb.innerText = "MISS"; fb.className = "feedback incorrect";
+                    } else if (correct) {
+                        this.score++; fb.innerText = "HIT"; fb.className = "feedback correct";
+                    } else {
+                        fb.innerText = "ERR"; fb.className = "feedback incorrect";
+                    }
+                    
+                    document.getElementById('score').innerText = this.score;
+                    const acc = Math.round((this.score / (i+1)) * 100);
+                    document.getElementById('accuracy').innerText = acc + "%";
+                }
+            }
+        } catch (e) {
+            console.log("Session end", e);
+        } finally {
+            this.endSession();
+        }
+    }
+
+    waitForInput(ms, signal) {
+        return new Promise((resolve) => {
+            let resolved = false;
+            let timerId = null;
+
+            const cleanup = () => {
+                const btnM = document.getElementById('match-btn');
+                const btnN = document.getElementById('no-match-btn');
+                if(btnM) { btnM.onclick = null; btnM.disabled = true; }
+                if(btnN) { btnN.onclick = null; btnN.disabled = true; }
+                if (timerId) clearTimeout(timerId);
+            };
+
+            const finish = (result) => {
+                if (!resolved) {
+                    resolved = true;
+                    cleanup();
+                    resolve(result);
+                }
+            };
+
+            const keyHandler = (e) => {
+                if (e.code === 'Space') { e.preventDefault(); finish('match'); }
+                if (e.code === 'Enter') { e.preventDefault(); finish('nomatch'); }
+            };
+
+            document.addEventListener('keydown', keyHandler);
+            const btnM = document.getElementById('match-btn');
+            const btnN = document.getElementById('no-match-btn');
+            
+            btnM.disabled = false;
+            btnN.disabled = false;
+            
+            btnM.onclick = (e) => { e.preventDefault(); finish('match'); };
+            btnN.onclick = (e) => { e.preventDefault(); finish('nomatch'); };
+
+            timerId = setTimeout(() => finish('timeout'), ms);
+            signal.addEventListener('abort', () => finish('abort'), { once: true });
+        });
+    }
+
+    endSession() {
+        this.running = false;
+        document.getElementById('status').innerText = "SESSION END";
+        document.getElementById('start-btn').disabled = false;
+        document.getElementById('stop-btn').disabled = true;
+        document.getElementById('premise-display').style.opacity = '1';
+    }
+
+    stop() { if (this.abortCtrl) this.abortCtrl.abort(); }
+}
+
+const game = new GameEngine();
+
+document.getElementById('start-btn').addEventListener('click', () => {
+    // 1. UNLOCK AUDIO
+    window.speechSynthesis.cancel();
+    const unlock = new SpeechSynthesisUtterance("Starting");
+    unlock.volume = 1.0;
+    window.speechSynthesis.speak(unlock);
+
+    // 2. GATHER SETTINGS
+    game.n = parseInt(document.getElementById('n-slider').value);
+    game.k = parseInt(document.getElementById('k-slider').value);
+    game.spt = parseFloat(document.getElementById('spt-slider').value);
+    const trials = parseInt(document.getElementById('numTrialsInput').value);
+    
+    // 3. START GAP (1.5s Delay)
+    setTimeout(() => {
+        game.runSession(trials);
+    }, 1500);
+});
+
+document.getElementById('stop-btn').onclick = () => game.stop();
+
+['n', 'k', 'spt'].forEach(id => {
+    document.getElementById(`${id}-slider`).oninput = (e) => 
+        document.getElementById(`${id}-value`).innerText = e.target.value;
+});
+
+</script>
+</body>
+</html>
